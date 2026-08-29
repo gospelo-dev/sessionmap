@@ -320,6 +320,7 @@ fn short_cmd(p: &sysinfo::Process) -> String {
     }
     let mut parts: Vec<String> = cmd
         .iter()
+        .filter(|s| !s.to_string_lossy().contains('='))
         .take(4)
         .map(|s| {
             let s = s.to_string_lossy();
