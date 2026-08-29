@@ -58,3 +58,12 @@ watch -n 5 --color claude-monitor --once --color
 3. `~/.claude/projects/*/<sessionId>.jsonl` — タイトル・最初のプロンプト・トークン数。追記分だけを差分読みするので大きな transcript でも軽量です
 
 レジストリに無い `claude` プロセスも「unregistered」として拾います。`CLAUDE_CONFIG_DIR` を設定している場合はそれに従います。
+
+## OpenCode 対応
+
+[OpenCode](https://github.com/sst/opencode) のプロセス（`opencode` / `opencode serve` / `opencode run`）も同じ表に **AGENT = opencode** として並びます。
+
+- セッション情報は `~/.local/share/opencode/opencode.db`（SQLite）を読み取り専用で参照します（`OPENCODE_DB` で場所を上書き可、`XDG_DATA_HOME` にも追従）
+- OpenCode には PID レジストリが無いので、**プロセスの cwd と一致する directory の最新セッション**を紐づけます。プロセス起動より前に終わっていたセッションは `(last in dir)` を付けて表示します
+- IDLE はセッションの `time_updated`、CTX は最後のアシスタント応答の input + cache トークン
+- TUI の `x` は OpenCode プロセスにも使えます

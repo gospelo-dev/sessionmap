@@ -43,6 +43,7 @@ pub struct ChildProc {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct SessionInfo {
+    pub agent: &'static str,
     pub pid: u32,
     pub alive: bool,
     pub session_id: String,
@@ -76,6 +77,7 @@ pub struct SessionInfo {
 pub struct Collector {
     sys: System,
     cache: JsonlCache,
+    pub cwds: CwdCache,
     claude_dir: PathBuf,
 }
 
@@ -85,7 +87,7 @@ impl Collector {
         let claude_dir = std::env::var("CLAUDE_CONFIG_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| home.join(".claude"));
-        Self { sys: System::new(), cache: JsonlCache::default(), claude_dir }
+        Self { sys: System::new(), cache: JsonlCache::default(), cwds: CwdCache::default(), claude_dir }
     }
 
     pub fn collect(&mut self) -> Vec<SessionInfo> {
@@ -134,7 +136,7 @@ impl Collector {
                 info.cpu = p.cpu_usage();
                 info.uptime_secs = now_secs.saturating_sub(p.start_time());
                 info.cmdline = cmdline(p);
-                Self::fill_tree(&self.sys, &mut info, &children);
+                fill_tree(&self.sys, &mut info, &children);
             }
             out.push(info);
         }
@@ -153,7 +155,7 @@ impl Collector {
             }
             let cmd = cmdline(p);
             let session_id = extract_session_id(&cmd);
-            let cwd = p.cwd().map(|c| c.display().to_string()).unwrap_or_default();
+            let cwd = self.cwds.get(p);
             let reg = Registry { pid, session_id: session_id.clone().unwrap_or_default(), cwd, ..Default::default() };
             let mut info = Self::base_info(&mut self.cache, &reg, now_secs, &jsonl_index);
             info.alive = true;
@@ -165,10 +167,11 @@ impl Collector {
             if info.title_source == "none" {
                 info.title = "(unregistered claude process)".into();
             }
-            Self::fill_tree(&self.sys, &mut info, &children);
+            fill_tree(&self.sys, &mut info, &children);
             out.push(info);
         }
 
+        out.extend(crate::opencode::collect(&self.sys, &mut self.cwds, &children, now_secs));
         out.sort_by(|a, b| b.rss_tree.cmp(&a.rss_tree));
         out
     }
@@ -187,6 +190,7 @@ impl Collector {
             .unwrap_or_else(|| reg.cwd.clone());
 
         SessionInfo {
+            agent: "claude",
             pid: reg.pid,
             alive: false,
             session_id: reg.session_id.clone(),
@@ -214,8 +218,9 @@ impl Collector {
             unregistered: false,
         }
     }
+}
 
-    fn fill_tree(sys: &System, info: &mut SessionInfo, children: &HashMap<u32, Vec<u32>>) {
+pub fn fill_tree(sys: &System, info: &mut SessionInfo, children: &HashMap<u32, Vec<u32>>) {
         let mut total = info.rss_self;
         let mut stack: Vec<u32> = children.get(&info.pid).cloned().unwrap_or_default();
         let mut guard = 0;
@@ -237,8 +242,9 @@ impl Collector {
             }
         }
         info.rss_tree = total;
-    }
+}
 
+impl Collector {
     fn read_registry(&self) -> Vec<Registry> {
         let dir = self.claude_dir.join("sessions");
         let mut v = Vec::new();
@@ -309,11 +315,11 @@ fn is_claude(p: &sysinfo::Process) -> bool {
         .unwrap_or(false)
 }
 
-fn cmdline(p: &sysinfo::Process) -> String {
+pub fn cmdline(p: &sysinfo::Process) -> String {
     p.cmd().iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>().join(" ")
 }
 
-fn short_cmd(p: &sysinfo::Process) -> String {
+pub fn short_cmd(p: &sysinfo::Process) -> String {
     let cmd = p.cmd();
     if cmd.is_empty() {
         return p.name().to_string_lossy().to_string();
@@ -350,4 +356,36 @@ fn extract_session_id(cmd: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// cwd lookup with fallback to `lsof` (sysinfo returns nothing for some processes on macOS).
+/// Results are cached per (pid, start_time) so lsof runs only for newly seen processes.
+#[derive(Default)]
+pub struct CwdCache {
+    map: HashMap<(u32, u64), String>,
+}
+
+impl CwdCache {
+    pub fn get(&mut self, p: &sysinfo::Process) -> String {
+        let key = (p.pid().as_u32(), p.start_time());
+        if let Some(c) = self.map.get(&key) {
+            return c.clone();
+        }
+        let mut cwd = p.cwd().map(|c| c.display().to_string()).unwrap_or_default();
+        if cwd.is_empty() {
+            cwd = lsof_cwd(key.0).unwrap_or_default();
+        }
+        self.map.insert(key, cwd.clone());
+        cwd
+    }
+}
+
+fn lsof_cwd(pid: u32) -> Option<String> {
+    let out = std::process::Command::new("lsof")
+        .args(["-a", "-d", "cwd", "-p", &pid.to_string(), "-Fn"])
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    let s = String::from_utf8_lossy(&out.stdout);
+    s.lines().find_map(|l| l.strip_prefix('n')).map(|s| s.to_string())
 }

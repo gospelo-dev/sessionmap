@@ -251,6 +251,11 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(format!("{}", bytes(total)), Style::default().bold().fg(Color::Magenta)),
         Span::raw(" total RSS (incl. children)  "),
     ];
+    let cc = app.sessions.iter().filter(|s| s.alive && s.agent == "claude").count();
+    let oc = app.sessions.iter().filter(|s| s.alive && s.agent == "opencode").count();
+    if oc > 0 {
+        spans.push(Span::styled(format!("(claude {cc} / opencode {oc})  "), Style::default().fg(Color::DarkGray)));
+    }
     if busy_n > 0 {
         spans.push(Span::styled(format!("{busy_n} busy  "), Style::default().fg(Color::Green)));
     }
@@ -282,7 +287,7 @@ fn draw_table(f: &mut Frame, app: &mut App, area: Rect) {
     let bar_w: usize = 12;
     let width = area.width as usize;
     // fixed columns: pid(6) mem(7) bar(12) up(7) idle(7) ctx(6) via(6) + gaps
-    let fixed = 6 + 7 + bar_w + 7 + 7 + 6 + 6 + 8 * 2 + 2;
+    let fixed = 8 + 6 + 7 + bar_w + 7 + 7 + 6 + 6 + 8 * 2 + 2;
     let rest = width.saturating_sub(fixed).max(20);
     let proj_w = (rest / 3).clamp(10, 28);
     let title_w = rest.saturating_sub(proj_w).max(10);
@@ -313,8 +318,10 @@ fn draw_table(f: &mut Frame, app: &mut App, area: Rect) {
             };
             let via = if s.unregistered { "?" } else { via };
             let mem_color = mem_color(s.rss_tree);
+            let agent_style = if s.agent == "opencode" { Style::default().fg(Color::Magenta) } else { Style::default().fg(Color::Rgb(255, 135, 0)) };
             Row::new(vec![
                 Cell::from(status_dot),
+                Cell::from(s.agent).style(agent_style),
                 Cell::from(s.pid.to_string()).style(base),
                 Cell::from(bytes(s.rss_tree)).style(base.fg(mem_color)),
                 Cell::from(bar).style(Style::default().fg(mem_color)),
@@ -328,10 +335,11 @@ fn draw_table(f: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    let header = Row::new(vec!["", "PID", "MEM", "", "UP", "IDLE", "CTX", "VIA", "PROJECT", "TITLE"])
+    let header = Row::new(vec!["", "AGENT", "PID", "MEM", "", "UP", "IDLE", "CTX", "VIA", "PROJECT", "TITLE"])
         .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD | Modifier::UNDERLINED));
     let widths = [
         Constraint::Length(1),
+        Constraint::Length(8),
         Constraint::Length(6),
         Constraint::Length(7),
         Constraint::Length(bar_w as u16),

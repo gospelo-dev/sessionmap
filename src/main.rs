@@ -1,6 +1,7 @@
 mod collector;
 mod format;
 mod jsonl;
+mod opencode;
 mod ui;
 
 use clap::Parser;
@@ -75,6 +76,11 @@ impl Paint {
     fn banner(&self, s: impl AsRef<str>) -> String { self.c("1;30;46", s) }
 }
 
+fn agent_paint(p: &Paint, a: &str) -> String {
+    let s = format!("{a:<8}");
+    if a == "opencode" { p.magenta(s) } else { p.c("38;5;208", s) }
+}
+
 fn mem_paint(p: &Paint, b: u64, s: String) -> String {
     let mb = b / (1024 * 1024);
     if mb >= 1024 { p.red(s) } else if mb >= 400 { p.yellow(s) } else { p.green(s) }
@@ -105,8 +111,8 @@ fn print_table(sessions: &[SessionInfo], idle_warn: u64, color: bool) {
     println!(
         "{}",
         p.header(format!(
-            "{:>1} {:>6} {:>6} {:<bw$} {:>6} {:>7} {:>6} {:<6} {:<22} {}",
-            "", "PID", "MEM", "", "UP", "IDLE", "CTX", "VIA", "PROJECT", "TITLE", bw = bar_w
+            "{:>1} {:<8} {:>6} {:>6} {:<bw$} {:>6} {:>7} {:>6} {:<6} {:<22} {}",
+            "", "AGENT", "PID", "MEM", "", "UP", "IDLE", "CTX", "VIA", "PROJECT", "TITLE", bw = bar_w
         ))
     );
     for s in sessions {
@@ -125,8 +131,9 @@ fn print_table(sessions: &[SessionInfo], idle_warn: u64, color: bool) {
         let via = match s.entrypoint.as_str() { "claude-vscode" => "vscode", e => e };
         let via = if s.unregistered { "?" } else { via };
         let line = format!(
-            "{} {:>6} {} {} {:>6} {} {:>6} {:<6} {:<22} {}",
+            "{} {} {:>6} {} {} {:>6} {} {:>6} {:<6} {:<22} {}",
             dot,
+            agent_paint(&p, s.agent),
             s.pid,
             mem_paint(&p, s.rss_tree, format!("{:>6}", bytes(s.rss_tree))),
             bar,
