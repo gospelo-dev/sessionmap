@@ -43,6 +43,7 @@ struct App {
     confirm_kill: Option<u32>,
     message: Option<(String, Instant)>,
     last_refresh: Instant,
+    sys_total: u64,
 }
 
 impl App {
@@ -91,6 +92,12 @@ impl App {
 }
 
 pub fn run(collector: Collector, interval: u64, idle_warn: u64, show_all: bool) -> io::Result<()> {
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(io::stdout(), LeaveAlternateScreen);
+        default_hook(info);
+    }));
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -107,6 +114,7 @@ pub fn run(collector: Collector, interval: u64, idle_warn: u64, show_all: bool) 
         confirm_kill: None,
         message: None,
         last_refresh: Instant::now(),
+        sys_total: sysinfo::System::new_with_specifics(sysinfo::RefreshKind::nothing().with_memory(sysinfo::MemoryRefreshKind::everything())).total_memory(),
     };
     app.refresh();
 
@@ -254,7 +262,7 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     }
     spans.push(Span::styled(format!("sort:{}", app.sort.label()), Style::default().fg(Color::DarkGray)));
 
-    let sys_total = sysinfo::System::new_all().total_memory();
+    let sys_total = app.sys_total;
     let ratio = if sys_total > 0 { (total as f64 / sys_total as f64).min(1.0) } else { 0.0 };
     let gauge = Gauge::default()
         .ratio(ratio)
