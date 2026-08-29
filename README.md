@@ -17,6 +17,8 @@ claude-monitor --once     # 1回だけ表で出力して終了（パイプ向け
 claude-monitor --json     # JSON で出力
 claude-monitor --all      # 死んでいるレジストリ（stale）も表示
 claude-monitor --idle-warn 15 --interval 5
+claude-monitor --once --color | less -R   # パイプでも色を付ける（既定は TTY のときだけ色付き、NO_COLOR / --no-color で無効）
+watch -n 5 --color claude-monitor --once --color
 ```
 
 `--once` の出力例:
