@@ -1,3 +1,4 @@
+mod codex;
 mod collector;
 mod copilot;
 mod copilot_vscode;
@@ -83,6 +84,7 @@ fn agent_paint(p: &Paint, a: &str) -> String {
     match a {
         "opencode" => p.magenta(s),
         "copilot" => p.c("38;5;75", s),
+        "codex" => p.c("38;5;114", s),
         _ => p.c("38;5;208", s),
     }
 }

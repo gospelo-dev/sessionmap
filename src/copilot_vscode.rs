@@ -195,6 +195,25 @@ fn mtime_secs(p: &Path) -> Option<u64> {
     std::fs::metadata(p).ok()?.modified().ok()?.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs())
 }
 
+/// extension-host pid -> workspace folders, from the Copilot ide locks (empty if Copilot is not installed)
+pub fn windows() -> HashMap<u32, Vec<String>> {
+    let mut m = HashMap::new();
+    let Ok(rd) = std::fs::read_dir(ide_dir()) else { return m };
+    for e in rd.flatten() {
+        let p = e.path();
+        if p.extension().and_then(|s| s.to_str()) != Some("lock") {
+            continue;
+        }
+        if let Ok(txt) = std::fs::read_to_string(&p) {
+            if let Ok(lock) = serde_json::from_str::<IdeLock>(&txt) {
+                let folders = lock.workspace_folders.iter().map(|f| f.trim_end_matches('/').to_string()).collect();
+                m.insert(lock.pid, folders);
+            }
+        }
+    }
+    m
+}
+
 pub fn collect(
     sys: &System,
     cache: &mut ChatCache,

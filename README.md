@@ -88,3 +88,13 @@ VS Code 拡張の Copilot Chat は独立したプロセスを持たず拡張ホ�
 - IDLE は最新チャットファイルの更新時刻
 - MEM は拡張ホストのプロセスツリー全体（tsserver 等ほかの拡張も含む）。ただし同じ拡張ホストから起動された Claude Code など**別行で数えているセッションは除外**しているので二重計上はありません
 - PID は拡張ホストなので、`x` で kill するとそのウィンドウの拡張がすべて再起動します
+
+## Codex 対応
+
+OpenAI Codex（CLI の `codex`、VS Code 拡張が起動する `codex app-server`）は **AGENT = codex** として並びます。
+
+- スレッド情報は `~/.codex/state_5.sqlite` の `threads` テーブル（`CODEX_HOME` で場所を上書き可）
+- 「開いているスレッド」は `~/.codex/thread-writer-locks/<thread_id>.lock` で判定。ロックに PID は無いので、`app-server` には同じ VS Code ウィンドウのフォルダ配下のスレッド、CLI にはプロセス cwd 配下のスレッドを紐づけます。複数あれば `[+N threads]`
+- タイトルは `name` > `title` > 最初のユーザーメッセージ、CTX は `tokens_used`（累計）、モデル・ブランチも DB から
+- VIA は `vscode`（app-server）/ `cli` / `exec`
+- 開いているスレッドが無い app-server は `(codex app-server, no open thread)` と表示します

@@ -254,8 +254,9 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     let cc = app.sessions.iter().filter(|s| s.alive && s.agent == "claude").count();
     let oc = app.sessions.iter().filter(|s| s.alive && s.agent == "opencode").count();
     let cp = app.sessions.iter().filter(|s| s.alive && s.agent == "copilot").count();
-    if oc > 0 || cp > 0 {
-        spans.push(Span::styled(format!("(claude {cc} / opencode {oc} / copilot {cp})  "), Style::default().fg(Color::DarkGray)));
+    let cx = app.sessions.iter().filter(|s| s.alive && s.agent == "codex").count();
+    if oc > 0 || cp > 0 || cx > 0 {
+        spans.push(Span::styled(format!("(claude {cc} / opencode {oc} / copilot {cp} / codex {cx})  "), Style::default().fg(Color::DarkGray)));
     }
     if busy_n > 0 {
         spans.push(Span::styled(format!("{busy_n} busy  "), Style::default().fg(Color::Green)));
@@ -322,6 +323,7 @@ fn draw_table(f: &mut Frame, app: &mut App, area: Rect) {
             let agent_style = match s.agent {
                 "opencode" => Style::default().fg(Color::Magenta),
                 "copilot" => Style::default().fg(Color::Rgb(95, 175, 255)),
+                "codex" => Style::default().fg(Color::Rgb(135, 215, 135)),
                 _ => Style::default().fg(Color::Rgb(255, 135, 0)),
             };
             Row::new(vec![

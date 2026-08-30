@@ -175,6 +175,8 @@ impl Collector {
 
         out.extend(crate::opencode::collect(&self.sys, &mut self.cwds, &children, now_secs));
         out.extend(crate::copilot::collect(&self.sys, &mut self.copilot_events, &children, now_secs));
+        let windows = crate::copilot_vscode::windows();
+        out.extend(crate::codex::collect(&self.sys, &mut self.cwds, &children, &windows, now_secs));
         let claimed: std::collections::HashSet<u32> = out.iter().filter(|s| s.alive).map(|s| s.pid).collect();
         out.extend(crate::copilot_vscode::collect(&self.sys, &mut self.vscode_chats, &children, &claimed, now_secs));
         out.sort_by(|a, b| b.rss_tree.cmp(&a.rss_tree));
