@@ -16,7 +16,7 @@ On top of what `ps` gives you (PID / RSS / uptime), it overlays **which project 
 |---|---|
 | macOS | Fully supported (primary development platform) |
 | Linux | Supported. `lsof` is used as a cwd fallback if present, but not required |
-| Windows | Supported natively (`%USERPROFILE%` / `%APPDATA%` are used for agent and VS Code paths). Also works under WSL, where it sees WSL-side sessions only |
+| Windows | Supported natively (`%USERPROFILE%` / `%APPDATA%` are used for agent and VS Code paths; `.exe` process names are recognized). Process cwd is not available on Windows, so Codex CLI rows attach to the most recent open CLI thread and OpenCode rows may show no session. Also works under WSL, where it sees WSL-side sessions only |
 
 CI builds and runs `sessionmap --once` on all three.
 

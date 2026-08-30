@@ -15,7 +15,7 @@ Claude Code / OpenCode / GitHub Copilot CLI / Codex などコーディングエ�
 |---|---|
 | macOS | 完全対応(主開発環境) |
 | Linux | 対応。`lsof` があれば cwd 取得のフォールバックに使いますが必須ではありません |
-| Windows | ネイティブ対応(エージェントと VS Code のパスに `%USERPROFILE%` / `%APPDATA%` を使用)。WSL でも動きますが、見えるのは WSL 側のセッションだけです |
+| Windows | ネイティブ対応(エージェントと VS Code のパスに `%USERPROFILE%` / `%APPDATA%` を使用、`.exe` 付きプロセス名を認識)。Windows ではプロセスの cwd が取れないため、Codex CLI の行は最新の開いている CLI スレッドに紐づき、OpenCode の行はセッションが付かないことがあります。WSL でも動きますが、見えるのは WSL 側のセッションだけです |
 
 CI で 3 OS すべてのビルドと `sessionmap --once` の実行を確認しています。
 
