@@ -320,11 +320,23 @@ fn choose_title(reg: &Registry, j: Option<&JsonlInfo>) -> (String, &'static str)
 }
 
 fn is_claude(p: &sysinfo::Process) -> bool {
-    proc_named(p, "claude")
+    proc_named(p, "claude") && !is_claude_desktop(p)
 }
 
-/// True if the process name or exe basename equals `want`, ignoring case and a
+/// The Claude Desktop app is also `claude.exe` on Windows (and `Claude` on macOS);
+/// it is not a Claude Code session.
+fn is_claude_desktop(p: &sysinfo::Process) -> bool {
+    p.exe()
+        .map(|e| {
+            let s = e.to_string_lossy();
+            s.contains("AnthropicClaude") || s.contains("Claude.app")
+        })
+        .unwrap_or(false)
+}
+
+/// True if the process name or exe basename equals `want` after removing a
 /// trailing `.exe` (Windows reports `codex.exe`, macOS/Linux report `codex`).
+/// The suffix check is case-insensitive; the name itself is compared exactly.
 pub fn proc_named(p: &sysinfo::Process, want: &str) -> bool {
     exe_stem(&p.name().to_string_lossy()) == want
         || p.exe()
@@ -333,9 +345,11 @@ pub fn proc_named(p: &sysinfo::Process, want: &str) -> bool {
             .unwrap_or(false)
 }
 
-fn exe_stem(name: &str) -> String {
-    let lower = name.to_ascii_lowercase();
-    lower.strip_suffix(".exe").map(str::to_string).unwrap_or(lower)
+fn exe_stem(name: &str) -> &str {
+    match name.len().checked_sub(4) {
+        Some(i) if name.is_char_boundary(i) && name[i..].eq_ignore_ascii_case(".exe") => &name[..i],
+        _ => name,
+    }
 }
 
 #[cfg(test)]
@@ -346,8 +360,10 @@ mod tests {
     fn exe_stem_strips_windows_suffix() {
         assert_eq!(exe_stem("codex"), "codex");
         assert_eq!(exe_stem("codex.exe"), "codex");
-        assert_eq!(exe_stem("Codex.EXE"), "codex");
+        assert_eq!(exe_stem("codex.EXE"), "codex");
         assert_eq!(exe_stem("codex.exe.bak"), "codex.exe.bak");
+        // macOS Claude Desktop is `Claude`; it must not equal `claude`
+        assert_ne!(exe_stem("Claude"), "claude");
     }
 }
 
