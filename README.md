@@ -78,3 +78,13 @@ watch -n 5 --color claude-monitor --once --color
 - `copilot` は薄いラッパープロセス + 本体の 2 プロセス構成なので、MEM はその合計、PID はラッパー側（`x` で kill すると両方終了します）
 - CTX は Copilot がターンごとの入力トークンを記録しないため `-` になります
 - プロセスが死んでいるのにロックが残っている場合は `--all` / `a` で stale として見えます
+
+### VS Code の Copilot Chat
+
+VS Code 拡張の Copilot Chat は独立したプロセスを持たず拡張ホスト内で動くため、**ウィンドウ単位**で 1 行（AGENT = copilot / VIA = vscode）として表示します。
+
+- Copilot 拡張が書く `~/.copilot/ide/<uuid>.lock`（拡張ホストの PID とワークスペースフォルダ）でウィンドウを検出
+- チャットは `~/Library/Application Support/Code/User/workspaceStorage/<hash>/chatSessions/*.jsonl` から読み、**最新の中身のあるチャット**のタイトル（customTitle > 最初のメッセージ）とモデルを表示。24 時間以内に触ったチャットが複数あれば `[+N chats/24h]` を付けます。Linux の `~/.config/Code` と Insiders も探索、`VSCODE_WORKSPACE_STORAGE` で上書き可
+- IDLE は最新チャットファイルの更新時刻
+- MEM は拡張ホストのプロセスツリー全体（tsserver 等ほかの拡張も含む）。ただし同じ拡張ホストから起動された Claude Code など**別行で数えているセッションは除外**しているので二重計上はありません
+- PID は拡張ホストなので、`x` で kill するとそのウィンドウの拡張がすべて再起動します

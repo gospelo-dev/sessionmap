@@ -425,6 +425,12 @@ fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
         let more = if kids.len() > 6 { format!("  +{} more", kids.len() - 6) } else { String::new() };
         lines.push(kv(&format!("child×{}", kids.len()), format!("{}{}", shown.join("  |  "), more)));
     }
+    if s.agent == "copilot" && s.entrypoint == "vscode" {
+        lines.push(Line::from(Span::styled(
+            "  PID is the VS Code extension host: MEM covers all extensions of that window (other agents' sessions excluded); x restarts every extension in it",
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
     if !s.alive {
         lines.push(Line::from(Span::styled("  (process not running — stale registry file ~/.claude/sessions/<pid>.json)", Style::default().fg(Color::Yellow))));
     }

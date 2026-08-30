@@ -1,5 +1,6 @@
 mod collector;
 mod copilot;
+mod copilot_vscode;
 mod format;
 mod jsonl;
 mod opencode;

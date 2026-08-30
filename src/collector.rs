@@ -79,6 +79,7 @@ pub struct Collector {
     cache: JsonlCache,
     pub cwds: CwdCache,
     copilot_events: crate::copilot::EventsCache,
+    vscode_chats: crate::copilot_vscode::ChatCache,
     claude_dir: PathBuf,
 }
 
@@ -88,7 +89,7 @@ impl Collector {
         let claude_dir = std::env::var("CLAUDE_CONFIG_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| home.join(".claude"));
-        Self { sys: System::new(), cache: JsonlCache::default(), cwds: CwdCache::default(), copilot_events: Default::default(), claude_dir }
+        Self { sys: System::new(), cache: JsonlCache::default(), cwds: CwdCache::default(), copilot_events: Default::default(), vscode_chats: Default::default(), claude_dir }
     }
 
     pub fn collect(&mut self) -> Vec<SessionInfo> {
@@ -174,6 +175,8 @@ impl Collector {
 
         out.extend(crate::opencode::collect(&self.sys, &mut self.cwds, &children, now_secs));
         out.extend(crate::copilot::collect(&self.sys, &mut self.copilot_events, &children, now_secs));
+        let claimed: std::collections::HashSet<u32> = out.iter().filter(|s| s.alive).map(|s| s.pid).collect();
+        out.extend(crate::copilot_vscode::collect(&self.sys, &mut self.vscode_chats, &children, &claimed, now_secs));
         out.sort_by(|a, b| b.rss_tree.cmp(&a.rss_tree));
         out
     }
@@ -223,6 +226,12 @@ impl Collector {
 }
 
 pub fn fill_tree(sys: &System, info: &mut SessionInfo, children: &HashMap<u32, Vec<u32>>) {
+    fill_tree_excluding(sys, info, children, &std::collections::HashSet::new())
+}
+
+/// Like `fill_tree`, but subtrees rooted at any pid in `exclude` are skipped
+/// (used so a VS Code extension host does not re-count the claude/copilot sessions it spawned).
+pub fn fill_tree_excluding(sys: &System, info: &mut SessionInfo, children: &HashMap<u32, Vec<u32>>, exclude: &std::collections::HashSet<u32>) {
         let mut total = info.rss_self;
         let mut stack: Vec<u32> = children.get(&info.pid).cloned().unwrap_or_default();
         let mut guard = 0;
@@ -230,6 +239,9 @@ pub fn fill_tree(sys: &System, info: &mut SessionInfo, children: &HashMap<u32, V
             guard += 1;
             if guard > 2000 {
                 break;
+            }
+            if exclude.contains(&c) {
+                continue;
             }
             if let Some(p) = sys.process(Pid::from_u32(c)) {
                 total += p.memory();
