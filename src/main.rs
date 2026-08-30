@@ -13,7 +13,7 @@ use std::io::IsTerminal;
 
 /// Monitor running Claude Code sessions: memory, uptime, idle time and what each one is about.
 #[derive(Parser, Debug)]
-#[command(name = "claude-monitor", version, about)]
+#[command(name = "sessionmap", version, about)]
 struct Cli {
     /// Print a one-shot table and exit (no TUI)
     #[arg(short = '1', long)]
@@ -107,7 +107,7 @@ fn print_table(sessions: &[SessionInfo], idle_warn: u64, color: bool) {
     // banner
     let mut banner = format!(
         "{} {} running  {} total RSS (incl. children)",
-        p.banner(" claude-monitor "),
+        p.banner(" sessionmap "),
         p.bold(p.green(alive_n.to_string())),
         p.bold(p.magenta(bytes(total)))
     );

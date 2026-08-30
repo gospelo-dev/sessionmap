@@ -244,7 +244,7 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
     let stale_n = app.sessions.len() - alive;
 
     let mut spans = vec![
-        Span::styled(" claude-monitor ", Style::default().bold().fg(Color::Black).bg(Color::Cyan)),
+        Span::styled(" sessionmap ", Style::default().bold().fg(Color::Black).bg(Color::Cyan)),
         Span::raw("  "),
         Span::styled(format!("{alive}"), Style::default().bold().fg(Color::Green)),
         Span::raw(" running  "),

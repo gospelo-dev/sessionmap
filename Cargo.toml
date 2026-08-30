@@ -1,7 +1,17 @@
 [package]
-name = "claude-monitor"
+name = "gospelo-sessionmap"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+description = "TUI that lists coding-agent sessions (Claude Code, OpenCode, Copilot, Codex) with memory, idle time and context size, so you can find and free the stranded ones"
+repository = "https://github.com/gospelo-dev/sessionmap"
+readme = "README.md"
+keywords = ["tui", "monitor", "claude-code", "codex", "copilot"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "sessionmap"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.6.6", features = ["derive"] }
