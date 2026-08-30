@@ -320,15 +320,35 @@ fn choose_title(reg: &Registry, j: Option<&JsonlInfo>) -> (String, &'static str)
 }
 
 fn is_claude(p: &sysinfo::Process) -> bool {
-    let name = p.name().to_string_lossy();
-    if name == "claude" {
-        return true;
+    proc_named(p, "claude")
+}
+
+/// True if the process name or exe basename equals `want`, ignoring case and a
+/// trailing `.exe` (Windows reports `codex.exe`, macOS/Linux report `codex`).
+pub fn proc_named(p: &sysinfo::Process, want: &str) -> bool {
+    exe_stem(&p.name().to_string_lossy()) == want
+        || p.exe()
+            .and_then(|e| e.file_name())
+            .map(|n| exe_stem(&n.to_string_lossy()) == want)
+            .unwrap_or(false)
+}
+
+fn exe_stem(name: &str) -> String {
+    let lower = name.to_ascii_lowercase();
+    lower.strip_suffix(".exe").map(str::to_string).unwrap_or(lower)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::exe_stem;
+
+    #[test]
+    fn exe_stem_strips_windows_suffix() {
+        assert_eq!(exe_stem("codex"), "codex");
+        assert_eq!(exe_stem("codex.exe"), "codex");
+        assert_eq!(exe_stem("Codex.EXE"), "codex");
+        assert_eq!(exe_stem("codex.exe.bak"), "codex.exe.bak");
     }
-    // exe path may be a symlink target; be tolerant
-    p.exe()
-        .and_then(|e| e.file_name())
-        .map(|n| n.to_string_lossy() == "claude")
-        .unwrap_or(false)
 }
 
 pub fn cmdline(p: &sysinfo::Process) -> String {

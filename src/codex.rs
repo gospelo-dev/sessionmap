@@ -18,8 +18,7 @@ pub fn codex_home() -> PathBuf {
 }
 
 pub fn is_codex(p: &Process) -> bool {
-    p.name().to_string_lossy() == "codex"
-        || p.exe().and_then(|e| e.file_name()).map(|n| n.to_string_lossy() == "codex").unwrap_or(false)
+    crate::collector::proc_named(p, "codex")
 }
 
 #[derive(Clone, Debug)]
@@ -125,11 +124,16 @@ pub fn collect(
                     t.source != "cli"
                         && (window_folders.is_empty()
                             || window_folders.iter().any(|f| t.cwd == *f || Path::new(&t.cwd).starts_with(f)))
+                } else if cwd.is_empty() {
+                    // cwd unknown (sysinfo has no cwd on Windows): any open CLI thread
+                    t.source == "cli"
                 } else {
-                    !cwd.is_empty() && (t.cwd == cwd || Path::new(&t.cwd).starts_with(&cwd))
+                    t.cwd == cwd || Path::new(&t.cwd).starts_with(&cwd)
                 }
             })
             .collect();
+        let mut mine = mine;
+        mine.sort_by_key(|t| std::cmp::Reverse(t.updated_at));
         for t in &mine {
             used.insert(t.id.clone());
         }

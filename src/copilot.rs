@@ -18,8 +18,7 @@ pub fn state_dir() -> PathBuf {
 }
 
 pub fn is_copilot(p: &Process) -> bool {
-    p.name().to_string_lossy() == "copilot"
-        || p.exe().and_then(|e| e.file_name()).map(|n| n.to_string_lossy() == "copilot").unwrap_or(false)
+    crate::collector::proc_named(p, "copilot")
 }
 
 #[derive(Default, Clone)]

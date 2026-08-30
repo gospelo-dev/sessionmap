@@ -40,8 +40,7 @@ fn model_id(raw: &str) -> String {
 }
 
 pub fn is_opencode(p: &Process) -> bool {
-    p.name().to_string_lossy() == "opencode"
-        || p.exe().and_then(|e| e.file_name()).map(|n| n.to_string_lossy() == "opencode").unwrap_or(false)
+    crate::collector::proc_named(p, "opencode")
 }
 
 /// Recent top-level sessions, newest first. Cheap: indexed query, small limit.
