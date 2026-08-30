@@ -193,7 +193,8 @@ fn event_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut A
     }
 }
 
-/// Terminate a process: SIGTERM where supported, otherwise the platform default kill.
+/// Terminate a process: SIGTERM on Unix, `taskkill /T` (process tree) on Windows.
+#[cfg(unix)]
 fn kill(pid: u32) -> io::Result<()> {
     use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, Signal, System};
     let pid = Pid::from_u32(pid);
@@ -202,6 +203,16 @@ fn kill(pid: u32) -> io::Result<()> {
     let p = sys.process(pid).ok_or_else(|| io::Error::other("process not found"))?;
     let ok = p.kill_with(Signal::Term).unwrap_or_else(|| p.kill());
     if ok { Ok(()) } else { Err(io::Error::other("kill failed")) }
+}
+
+#[cfg(windows)]
+fn kill(pid: u32) -> io::Result<()> {
+    let status = std::process::Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()?;
+    if status.success() { Ok(()) } else { Err(io::Error::other(format!("taskkill exit {status}"))) }
 }
 
 fn draw(f: &mut Frame, app: &mut App) {
