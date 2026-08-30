@@ -345,6 +345,18 @@ pub fn proc_named(p: &sysinfo::Process, want: &str) -> bool {
             .unwrap_or(false)
 }
 
+/// Drop the Windows extended-length prefix (`\\?\C:\x` -> `C:\x`,
+/// `\\?\UNC\srv\share` -> `\\srv\share`) that some tools store in their state.
+pub fn strip_verbatim_prefix(path: &str) -> String {
+    if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else if let Some(rest) = path.strip_prefix(r"\\?\") {
+        rest.to_string()
+    } else {
+        path.to_string()
+    }
+}
+
 fn exe_stem(name: &str) -> &str {
     match name.len().checked_sub(4) {
         Some(i) if name.is_char_boundary(i) && name[i..].eq_ignore_ascii_case(".exe") => &name[..i],
@@ -354,7 +366,15 @@ fn exe_stem(name: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::exe_stem;
+    use super::{exe_stem, strip_verbatim_prefix};
+
+    #[test]
+    fn strips_windows_verbatim_prefix() {
+        assert_eq!(strip_verbatim_prefix(r"\\?\C:\Users\yurik"), r"C:\Users\yurik");
+        assert_eq!(strip_verbatim_prefix(r"\\?\UNC\srv\share\dir"), r"\\srv\share\dir");
+        assert_eq!(strip_verbatim_prefix("/Users/gorosun"), "/Users/gorosun");
+        assert_eq!(strip_verbatim_prefix(r"C:\plain"), r"C:\plain");
+    }
 
     #[test]
     fn exe_stem_strips_windows_suffix() {
@@ -431,7 +451,7 @@ impl CwdCache {
         if let Some(c) = self.map.get(&key) {
             return c.clone();
         }
-        let mut cwd = p.cwd().map(|c| c.display().to_string()).unwrap_or_default();
+        let mut cwd = p.cwd().map(|c| strip_verbatim_prefix(&c.display().to_string())).unwrap_or_default();
         if cwd.is_empty() {
             cwd = lsof_cwd(key.0).unwrap_or_default();
         }

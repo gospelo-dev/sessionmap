@@ -67,7 +67,7 @@ fn load_threads(home: &Path, ids: &[String]) -> Vec<Thread> {
         if let Ok(t) = stmt.query_row([id], |r| {
             Ok(Thread {
                 id: r.get(0)?,
-                cwd: r.get(1)?,
+                cwd: crate::collector::strip_verbatim_prefix(&r.get::<_, String>(1)?),
                 title: r.get(2)?,
                 source: r.get(3)?,
                 model: r.get(4)?,
