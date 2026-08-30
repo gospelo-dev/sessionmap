@@ -1,4 +1,5 @@
 mod collector;
+mod copilot;
 mod format;
 mod jsonl;
 mod opencode;
@@ -78,7 +79,11 @@ impl Paint {
 
 fn agent_paint(p: &Paint, a: &str) -> String {
     let s = format!("{a:<8}");
-    if a == "opencode" { p.magenta(s) } else { p.c("38;5;208", s) }
+    match a {
+        "opencode" => p.magenta(s),
+        "copilot" => p.c("38;5;75", s),
+        _ => p.c("38;5;208", s),
+    }
 }
 
 fn mem_paint(p: &Paint, b: u64, s: String) -> String {

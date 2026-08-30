@@ -78,6 +78,7 @@ pub struct Collector {
     sys: System,
     cache: JsonlCache,
     pub cwds: CwdCache,
+    copilot_events: crate::copilot::EventsCache,
     claude_dir: PathBuf,
 }
 
@@ -87,7 +88,7 @@ impl Collector {
         let claude_dir = std::env::var("CLAUDE_CONFIG_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| home.join(".claude"));
-        Self { sys: System::new(), cache: JsonlCache::default(), cwds: CwdCache::default(), claude_dir }
+        Self { sys: System::new(), cache: JsonlCache::default(), cwds: CwdCache::default(), copilot_events: Default::default(), claude_dir }
     }
 
     pub fn collect(&mut self) -> Vec<SessionInfo> {
@@ -172,6 +173,7 @@ impl Collector {
         }
 
         out.extend(crate::opencode::collect(&self.sys, &mut self.cwds, &children, now_secs));
+        out.extend(crate::copilot::collect(&self.sys, &mut self.copilot_events, &children, now_secs));
         out.sort_by(|a, b| b.rss_tree.cmp(&a.rss_tree));
         out
     }

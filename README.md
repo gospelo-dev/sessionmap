@@ -67,3 +67,14 @@ watch -n 5 --color claude-monitor --once --color
 - OpenCode には PID レジストリが無いので、**プロセスの cwd と一致する directory の最新セッション**を紐づけます。プロセス起動より前に終わっていたセッションは `(last in dir)` を付けて表示します
 - IDLE はセッションの `time_updated`、CTX は最後のアシスタント応答の input + cache トークン
 - TUI の `x` は OpenCode プロセスにも使えます
+
+## GitHub Copilot CLI 対応
+
+[GitHub Copilot CLI](https://github.com/github/copilot-cli)（`copilot` コマンド）のセッションも **AGENT = copilot** として並びます。
+
+- `~/.copilot/session-state/<id>/inuse.<pid>.lock` を PID レジストリとして使います（起動中のセッションだけが持つファイル）。`COPILOT_HOME` で場所を上書き可
+- タイトルは `workspace.yaml` の `name`（無ければ `events.jsonl` の最初のユーザーメッセージ）、ブランチ・cwd・起動元（cli / vscode）も同ファイルから
+- IDLE は `events.jsonl` の更新時刻、モデルは最後の `assistant.message`
+- `copilot` は薄いラッパープロセス + 本体の 2 プロセス構成なので、MEM はその合計、PID はラッパー側（`x` で kill すると両方終了します）
+- CTX は Copilot がターンごとの入力トークンを記録しないため `-` になります
+- プロセスが死んでいるのにロックが残っている場合は `--all` / `a` で stale として見えます
