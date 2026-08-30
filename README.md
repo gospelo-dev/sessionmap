@@ -10,6 +10,16 @@ On top of what `ps` gives you (PID / RSS / uptime), it overlays **which project 
 
 [日本語版 README](https://github.com/gospelo-dev/sessionmap/blob/main/README_ja.md) · [Quickstart](https://github.com/gospelo-dev/sessionmap/blob/main/docs/QUICKSTART.md)
 
+## Supported platforms
+
+| OS | Status |
+|---|---|
+| macOS | Fully supported (primary development platform) |
+| Linux | Supported. `lsof` is used as a cwd fallback if present, but not required |
+| Windows | Supported natively (`%USERPROFILE%` / `%APPDATA%` are used for agent and VS Code paths). Also works under WSL, where it sees WSL-side sessions only |
+
+CI builds and runs `sessionmap --once` on all three.
+
 ## Install
 
 ```sh

@@ -85,7 +85,7 @@ pub struct Collector {
 
 impl Collector {
     pub fn new() -> Self {
-        let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("/"));
+        let home = home_dir();
         let claude_dir = std::env::var("CLAUDE_CONFIG_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| home.join(".claude"));
@@ -374,6 +374,14 @@ fn extract_session_id(cmd: &str) -> Option<String> {
     None
 }
 
+/// Home directory: `$HOME` on Unix, `%USERPROFILE%` on Windows.
+pub fn home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/"))
+}
+
 /// cwd lookup with fallback to `lsof` (sysinfo returns nothing for some processes on macOS).
 /// Results are cached per (pid, start_time) so lsof runs only for newly seen processes.
 #[derive(Default)]
@@ -396,6 +404,7 @@ impl CwdCache {
     }
 }
 
+#[cfg(unix)]
 fn lsof_cwd(pid: u32) -> Option<String> {
     let out = std::process::Command::new("lsof")
         .args(["-a", "-d", "cwd", "-p", &pid.to_string(), "-Fn"])
@@ -404,4 +413,9 @@ fn lsof_cwd(pid: u32) -> Option<String> {
         .ok()?;
     let s = String::from_utf8_lossy(&out.stdout);
     s.lines().find_map(|l| l.strip_prefix('n')).map(|s| s.to_string())
+}
+
+#[cfg(not(unix))]
+fn lsof_cwd(_pid: u32) -> Option<String> {
+    None
 }

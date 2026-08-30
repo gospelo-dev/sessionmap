@@ -193,9 +193,15 @@ fn event_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut A
     }
 }
 
+/// Terminate a process: SIGTERM where supported, otherwise the platform default kill.
 fn kill(pid: u32) -> io::Result<()> {
-    let status = std::process::Command::new("kill").arg("-TERM").arg(pid.to_string()).status()?;
-    if status.success() { Ok(()) } else { Err(io::Error::other(format!("exit {status}"))) }
+    use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, Signal, System};
+    let pid = Pid::from_u32(pid);
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(ProcessesToUpdate::Some(&[pid]), true, ProcessRefreshKind::nothing());
+    let p = sys.process(pid).ok_or_else(|| io::Error::other("process not found"))?;
+    let ok = p.kill_with(Signal::Term).unwrap_or_else(|| p.kill());
+    if ok { Ok(()) } else { Err(io::Error::other("kill failed")) }
 }
 
 fn draw(f: &mut Frame, app: &mut App) {
@@ -455,4 +461,18 @@ fn draw_help(f: &mut Frame, app: &App, area: Rect) {
         ])
     };
     f.render_widget(Paragraph::new(line), area);
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn kill_terminates_child_process() {
+        #[cfg(unix)]
+        let mut child = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+        #[cfg(windows)]
+        let mut child = std::process::Command::new("cmd").args(["/C", "timeout /T 30 /NOBREAK >NUL"]).spawn().unwrap();
+        super::kill(child.id()).expect("kill should succeed");
+        let status = child.wait().unwrap();
+        assert!(!status.success(), "child should not exit normally: {status}");
+    }
 }

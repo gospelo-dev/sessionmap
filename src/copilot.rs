@@ -14,8 +14,7 @@ pub fn state_dir() -> PathBuf {
     if let Some(p) = std::env::var_os("COPILOT_HOME") {
         return PathBuf::from(p).join("session-state");
     }
-    let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("/"));
-    home.join(".copilot/session-state")
+    crate::collector::home_dir().join(".copilot/session-state")
 }
 
 pub fn is_copilot(p: &Process) -> bool {

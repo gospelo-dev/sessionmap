@@ -12,7 +12,7 @@ use sysinfo::{Pid, System};
 use crate::collector::{ChildProc, SessionInfo, cmdline, fill_tree_excluding};
 
 fn home() -> PathBuf {
-    std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("/"))
+    crate::collector::home_dir()
 }
 
 fn ide_dir() -> PathBuf {
@@ -30,6 +30,11 @@ fn workspace_storage_dirs() -> Vec<PathBuf> {
         h.join(".config/Code/User/workspaceStorage"),
         h.join(".config/Code - Insiders/User/workspaceStorage"),
     ];
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+        let a = PathBuf::from(appdata);
+        v.push(a.join("Code/User/workspaceStorage"));
+        v.push(a.join("Code - Insiders/User/workspaceStorage"));
+    }
     if let Some(p) = std::env::var_os("VSCODE_WORKSPACE_STORAGE") {
         v.insert(0, PathBuf::from(p));
     }

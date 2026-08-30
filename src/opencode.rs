@@ -26,7 +26,7 @@ pub fn db_path() -> PathBuf {
     if let Some(p) = std::env::var_os("OPENCODE_DB") {
         return PathBuf::from(p);
     }
-    let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("/"));
+    let home = crate::collector::home_dir();
     let base = std::env::var("XDG_DATA_HOME").map(PathBuf::from).unwrap_or_else(|_| home.join(".local/share"));
     base.join("opencode/opencode.db")
 }

@@ -14,8 +14,7 @@ pub fn codex_home() -> PathBuf {
     if let Some(p) = std::env::var_os("CODEX_HOME") {
         return PathBuf::from(p);
     }
-    let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("/"));
-    home.join(".codex")
+    crate::collector::home_dir().join(".codex")
 }
 
 pub fn is_codex(p: &Process) -> bool {
