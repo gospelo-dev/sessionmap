@@ -480,8 +480,14 @@ mod tests {
     fn kill_terminates_child_process() {
         #[cfg(unix)]
         let mut child = std::process::Command::new("sleep").arg("30").spawn().unwrap();
+        // `timeout` needs an interactive console (fails instantly on CI); ping does not.
         #[cfg(windows)]
-        let mut child = std::process::Command::new("cmd").args(["/C", "timeout /T 30 /NOBREAK >NUL"]).spawn().unwrap();
+        let mut child = std::process::Command::new("ping")
+            .args(["-n", "31", "127.0.0.1"])
+            .stdout(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(200));
         super::kill(child.id()).expect("kill should succeed");
         let status = child.wait().unwrap();
         assert!(!status.success(), "child should not exit normally: {status}");
