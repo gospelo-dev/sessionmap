@@ -32,8 +32,8 @@ You get one row per running coding-agent session:
  sessionmap  4 running  1.2G total RSS (incl. children)  2 busy  2 idle >30m
   AGENT       PID    MEM        UP    IDLE    CTX VIA     PROJECT           TITLE
 ● claude    51952   545M    20m14s      8s    50k cli     gospelo-dev       naming discussion
-  opencode  48120   210M     1h30m  1h12m!    38k cli     pj_leader         retention report
-  copilot   47311   190M     2h40m  2h05m!     -  vscode  code-review       skill handoff
+  opencode  48120   210M     1h30m  1h12m!    38k cli     webapp-ui         monthly report
+  copilot   47311   190M     2h40m  2h05m!     -  vscode  api-migration     skill handoff
 ● codex     52007   160M     3m02s     15s    12k vscode  sessionmap        add quickstart
 ```
 

@@ -50,9 +50,9 @@ Example `--once` output:
 
 ```
    PID     MEM    TREE      UP    IDLE    CTX PROJECT                VIA      TITLE
- 22387    339M    406M   9m13s    11s     66k sessionmap             cli      Claude Code session monitor
-  6306    191M    237M   1h12m  1h08m!    38k pj_leader-retention    vscode   Check session ID
-  8757    177M    197M   1h06m 18m02s    616k code-review            vscode   Write skill handoff doc
+ 22387    339M    406M   9m13s    11s     66k sessionmap             cli      Session monitor
+  6306    191M    237M   1h12m  1h08m!    38k internal-dashboard     vscode   Check session ID
+  8757    177M    197M   1h06m 18m02s    616k api-migration          vscode   Write skill handoff doc
 ```
 
 | Column | Meaning |
@@ -78,11 +78,18 @@ Example `--once` output:
 
 ## How it works
 
-1. `~/.claude/sessions/<pid>.json` — the registry each session writes (pid, sessionId, cwd, start time, entrypoint)
-2. Process table (sysinfo) — RSS / CPU / start time. PID reuse is detected by comparing start times
-3. `~/.claude/projects/*/<sessionId>.jsonl` — title, first prompt, token counts. Only the appended tail is read on each refresh, so large transcripts stay cheap
+1. Agent processes are found in the process table (sysinfo) — RSS / CPU / start time. PID reuse is detected by comparing start times
+2. The state files each agent already writes (registries, SQLite databases, lock files, transcripts) are read **read-only** and joined onto the processes to add title, idle time and token counts
 
-`claude` processes that have no registry entry are still picked up as "unregistered". `CLAUDE_CONFIG_DIR` is honored if set.
+The data source differs per agent — see the sections below.
+
+## Claude Code
+
+Claude Code sessions appear as **AGENT = claude**.
+
+- `~/.claude/sessions/<pid>.json` — the registry each session writes (pid, sessionId, cwd, start time, entrypoint). `CLAUDE_CONFIG_DIR` is honored if set
+- `~/.claude/projects/*/<sessionId>.jsonl` — title, first prompt, token counts. Only the appended tail is read on each refresh, so large transcripts stay cheap
+- `claude` processes that have no registry entry are still picked up as "unregistered"
 
 ## OpenCode
 

@@ -49,14 +49,14 @@ watch -n 5 --color sessionmap --once --color
 
 ```
    PID     MEM    TREE      UP    IDLE    CTX PROJECT                VIA      TITLE
- 22387    339M    406M   9m13s    11s     66k sessionmap             cli      Claude Code セッションモニター
-  6306    191M    237M   1h12m  1h08m!    38k pj_leader-retention    vscode   セッションID確認
-  8757    177M    197M   1h06m 18m02s    616k code-review            vscode   Skill handoff 資料作成
+ 22387    339M    406M   9m13s    11s     66k sessionmap             cli      セッションモニター
+  6306    191M    237M   1h12m  1h08m!    38k internal-dashboard     vscode   セッションID確認
+  8757    177M    197M   1h06m 18m02s    616k api-migration          vscode   Skill handoff 資料作成
 ```
 
 | 列 | 意味 |
 |---|---|
-| MEM | claude プロセス自身の RSS |
+| MEM | エージェントプロセス自身の RSS |
 | TREE | 子プロセス（MCP サーバー、hook など）を含めた RSS 合計 |
 | UP | プロセス起動からの経過時間 |
 | IDLE | セッションの transcript が最後に書かれてからの時間。`--idle-warn`（既定 30 分）を超えると `!` / 黄色 |
@@ -77,11 +77,18 @@ watch -n 5 --color sessionmap --once --color
 
 ## 仕組み
 
-1. `~/.claude/sessions/<pid>.json` — 各セッションが書くレジストリ（pid, sessionId, cwd, 起動時刻, entrypoint）
-2. プロセステーブル（sysinfo）— RSS / CPU / 起動時刻。PID の再利用は起動時刻で照合して弾きます
-3. `~/.claude/projects/*/<sessionId>.jsonl` — タイトル・最初のプロンプト・トークン数。追記分だけを差分読みするので大きな transcript でも軽量です
+1. プロセステーブル（sysinfo）からエージェントのプロセスを見つけます — RSS / CPU / 起動時刻。PID の再利用は起動時刻で照合して弾きます
+2. 各エージェントが元々書き残している状態ファイル（レジストリ・SQLite・ロックファイル・transcript）を**読み取り専用**で照合し、タイトル・放置時間・トークン数を重ねます
 
-レジストリに無い `claude` プロセスも「unregistered」として拾います。`CLAUDE_CONFIG_DIR` を設定している場合はそれに従います。
+データソースはエージェントごとに異なります。以下の各セクションを参照してください。
+
+## Claude Code 対応
+
+Claude Code のセッションは **AGENT = claude** として並びます。
+
+- `~/.claude/sessions/<pid>.json` — 各セッションが書くレジストリ（pid, sessionId, cwd, 起動時刻, entrypoint）。`CLAUDE_CONFIG_DIR` を設定している場合はそれに従います
+- `~/.claude/projects/*/<sessionId>.jsonl` — タイトル・最初のプロンプト・トークン数。追記分だけを差分読みするので大きな transcript でも軽量です
+- レジストリに無い `claude` プロセスも「unregistered」として拾います
 
 ## OpenCode 対応
 
