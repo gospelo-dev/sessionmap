@@ -10,7 +10,18 @@
 cargo install gospelo-sessionmap
 ```
 
-これで `sessionmap` コマンドが入ります。Rust ツールチェーン(`rustup`)が必要です。未導入なら <https://rustup.rs> から入れてください。
+これで `sessionmap` コマンドが入ります。Rust ツールチェーン(`rustup`)が必要です。
+
+未導入の場合、**macOS** では:
+
+```sh
+xcode-select --install                 # C コンパイラ(同梱 SQLite のビルドに必要)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+質問はすべてデフォルトで進め、シェルを開き直して(または `. "$HOME/.cargo/env"` を実行して)`cargo --version` で確認してください。
+
+その他の環境では <https://rustup.rs> の公式手順に従い、各自の責任で導入してください(Windows は Visual Studio Build Tools の C++ ワークロードも必要です)。
 
 チェックアウトからビルドする場合:
 

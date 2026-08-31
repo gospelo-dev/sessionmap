@@ -10,7 +10,18 @@ Get from zero to "I found the session that was eating 2 GB and freed it" in abou
 cargo install gospelo-sessionmap
 ```
 
-This installs the `sessionmap` command. Requires a Rust toolchain (`rustup`); if you don't have one, get it from <https://rustup.rs>.
+This installs the `sessionmap` command. Requires a Rust toolchain (`rustup`).
+
+If you don't have one yet, on **macOS**:
+
+```sh
+xcode-select --install                 # C compiler (needed to build the bundled SQLite)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Accept the defaults, then restart the shell (or run `. "$HOME/.cargo/env"`) and check with `cargo --version`.
+
+On other platforms, follow the official instructions at <https://rustup.rs> at your own discretion (Windows additionally needs the Visual Studio Build Tools C++ workload).
 
 To build from a checkout instead:
 
