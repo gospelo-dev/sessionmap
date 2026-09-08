@@ -40,7 +40,7 @@ sessionmap --once
 動いているコーディングエージェントのセッションが 1 行ずつ並びます:
 
 ```
- sessionmap  4 running  1.2G total RSS (incl. children)  2 busy  2 idle >30m
+ sessionmap  4 running  1.2G total footprint (incl. children)  2 busy  2 idle >30m
   AGENT       PID    MEM        UP    IDLE    CTX VIA     PROJECT           TITLE
 ● claude    51952   545M    20m14s      8s    50k cli     gospelo-dev       naming discussion
   opencode  48120   210M     1h30m  1h12m!    38k cli     webapp-ui         monthly report
@@ -53,7 +53,7 @@ sessionmap --once
 | 列 | 分かること |
 |---|---|
 | AGENT | どのハーネスか: `claude` / `opencode` / `copilot` / `codex` |
-| MEM | セッションが確保しているメモリ(プロセス + 子プロセス) |
+| MEM | セッションが確保しているメモリ(プロセス + 子プロセス)。macOS では物理フットプリントなので圧縮されたページも計上されます([README](https://github.com/gospelo-dev/sessionmap/blob/main/README_ja.md#メモリはどの指標か)) |
 | IDLE | 最後に動いてからの時間。`!` は放置しきい値(既定 30 分)を超えたもの |
 | CTX | 抱えているコンテキストのトークン数 |
 | PROJECT / TITLE | どこで何をしていたか |

@@ -40,7 +40,7 @@ sessionmap --once
 You get one row per running coding-agent session:
 
 ```
- sessionmap  4 running  1.2G total RSS (incl. children)  2 busy  2 idle >30m
+ sessionmap  4 running  1.2G total footprint (incl. children)  2 busy  2 idle >30m
   AGENT       PID    MEM        UP    IDLE    CTX VIA     PROJECT           TITLE
 ● claude    51952   545M    20m14s      8s    50k cli     gospelo-dev       naming discussion
   opencode  48120   210M     1h30m  1h12m!    38k cli     webapp-ui         monthly report
@@ -53,7 +53,7 @@ How to read it:
 | Column | What it tells you |
 |---|---|
 | AGENT | Which harness: `claude`, `opencode`, `copilot`, `codex` |
-| MEM | Memory the session holds (process + children) |
+| MEM | Memory the session holds (process + children). Physical footprint on macOS, so compressed pages are counted — see the [README](https://github.com/gospelo-dev/sessionmap/blob/main/README.md#which-memory-number) |
 | IDLE | Time since the session last did anything. `!` means it passed the idle threshold (30 min by default) |
 | CTX | Context tokens the session is carrying |
 | PROJECT / TITLE | Where it was working and what it was doing |
