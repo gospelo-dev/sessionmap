@@ -114,7 +114,7 @@ Claude Code sessions appear as **AGENT = claude**.
 - Session data is read read-only from `~/.local/share/opencode/opencode.db` (SQLite). Override with `OPENCODE_DB`; `XDG_DATA_HOME` is respected
 - OpenCode has no PID registry, so the **latest session whose directory matches the process cwd** is attached. If that session ended before the process started it is shown with `(last in dir)`
 - IDLE comes from the session's `time_updated`; CTX is input + cache tokens of the last assistant turn
-- `opencode attach <url>` is a terminal **view**, not a session: the session runs in the `serve` process it points at. Such rows show `-` for IDLE and CTX, name the server they belong to, and warn that `x` closes only the view
+- `opencode attach <url>` is a terminal **view**, not a session: the session runs in the `serve` process it points at. Such rows show `-` for IDLE and CTX, name the server they belong to, and warn that `x` closes only the view. From two sessions on, that split uses measurably less memory — see [Tips](https://github.com/gospelo-dev/sessionmap/blob/main/docs/TIPS.md)
 - `x` in the TUI works on OpenCode processes too
 
 ## GitHub Copilot CLI

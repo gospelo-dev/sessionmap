@@ -109,7 +109,7 @@ Claude Code のセッションは **AGENT = claude** として並びます。
 - セッション情報は `~/.local/share/opencode/opencode.db`（SQLite）を読み取り専用で参照します（`OPENCODE_DB` で場所を上書き可、`XDG_DATA_HOME` にも追従）
 - OpenCode には PID レジストリが無いので、**プロセスの cwd と一致する directory の最新セッション**を紐づけます。プロセス起動より前に終わっていたセッションは `(last in dir)` を付けて表示します
 - IDLE はセッションの `time_updated`、CTX は最後のアシスタント応答の input + cache トークン
-- `opencode attach <url>` はセッションではなく**ターミナルのビュー**です（セッション本体は接続先の `serve` プロセス側にあります）。該当行は IDLE / CTX を `-` とし、どのサーバーのビューかを表示し、`x` がビューを閉じるだけであることを警告します
+- `opencode attach <url>` はセッションではなく**ターミナルのビュー**です（セッション本体は接続先の `serve` プロセス側にあります）。該当行は IDLE / CTX を `-` とし、どのサーバーのビューかを表示し、`x` がビューを閉じるだけであることを警告します。2セッション以上ならこの構成の方がメモリを節約できます（[Tips](https://github.com/gospelo-dev/sessionmap/blob/main/docs/TIPS_ja.md)）
 - TUI の `x` は OpenCode プロセスにも使えます
 
 ## GitHub Copilot CLI 対応
