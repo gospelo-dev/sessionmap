@@ -11,6 +11,7 @@ use sysinfo::{Process, System};
 
 use crate::collector::{ChildProc, CwdCache, SessionInfo, cmdline, fill_tree};
 
+#[derive(Clone)]
 pub struct DbSession {
     pub id: String,
     pub directory: String,
@@ -59,6 +60,49 @@ fn attach_target(cmd: &str) -> Option<String> {
 
 fn port_of(hostport: &str) -> Option<u16> {
     hostport.rsplit(':').next()?.parse().ok()
+}
+
+/// `--session <id>` (or `-s`) on an attach client. This is the one case where
+/// the session behind a view is stated rather than guessed: a client that picks
+/// its session inside the TUI leaves no trace outside the process.
+fn attach_session_id(cmd: &str) -> Option<String> {
+    let mut it = cmd.split_whitespace();
+    while let Some(a) = it.next() {
+        if let Some(v) = a.strip_prefix("--session=") {
+            return (!v.is_empty()).then(|| v.to_string());
+        }
+        if a == "--session" || a == "-s" {
+            return it.next().filter(|v| !v.starts_with('-')).map(|v| v.to_string());
+        }
+    }
+    None
+}
+
+/// One session by id, for the `--session` case: it may be older than the window
+/// `recent_sessions` looks at.
+pub fn session_by_id(path: &Path, id: &str) -> Option<DbSession> {
+    let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX).ok()?;
+    let _ = conn.busy_timeout(std::time::Duration::from_millis(200));
+    let mut stmt = conn
+        .prepare("select id, directory, title, model, agent, time_updated from session where id = ?1")
+        .ok()?;
+    let mut s = stmt
+        .query_row([id], |r| {
+            Ok(DbSession {
+                id: r.get(0)?,
+                directory: r.get(1)?,
+                title: r.get(2)?,
+                model: r.get::<_, Option<String>>(3)?.map(|m| model_id(&m)),
+                agent: r.get::<_, Option<String>>(4)?,
+                time_updated: r.get::<_, i64>(5)? as u64,
+                context_tokens: None,
+                first_prompt: None,
+            })
+        })
+        .ok()?;
+    s.context_tokens = last_context_tokens(&conn, &s.id);
+    s.first_prompt = first_prompt(&conn, &s.id);
+    Some(s)
 }
 
 /// The port an `opencode serve` was told to listen on. `--port 0` means "pick a
@@ -200,6 +244,20 @@ mod tests {
     }
 
     #[test]
+    fn reads_an_explicitly_named_session() {
+        let url = "opencode attach http://127.0.0.1:4096";
+        assert_eq!(attach_session_id(&format!("{url} --session ses_abc")).as_deref(), Some("ses_abc"));
+        assert_eq!(attach_session_id(&format!("{url} -s ses_abc")).as_deref(), Some("ses_abc"));
+        assert_eq!(attach_session_id(&format!("{url} --session=ses_abc")).as_deref(), Some("ses_abc"));
+        assert_eq!(attach_session_id(&format!("{url} --session ses_abc --fork")).as_deref(), Some("ses_abc"));
+        // the flag with its value missing must not swallow the next flag, and
+        // must not be reported as a session (this happens on a truncated paste)
+        assert_eq!(attach_session_id(&format!("{url} --session")), None);
+        assert_eq!(attach_session_id(&format!("{url} --session --fork")), None);
+        assert_eq!(attach_session_id(url), None);
+    }
+
+    #[test]
     fn links_a_client_to_its_server() {
         let servers = vec![(10u32, 4096u16), (11, 4097)];
         assert_eq!(server_for(&servers, Some("127.0.0.1:4097")), Some(11));
@@ -223,7 +281,8 @@ pub fn collect(sys: &System, cwds: &mut CwdCache, children: &HashMap<u32, Vec<u3
     if procs.is_empty() {
         return out;
     }
-    let sessions = recent_sessions(&db_path(), 200);
+    let db = db_path();
+    let sessions = recent_sessions(&db, 200);
     let mut used: std::collections::HashSet<String> = Default::default();
     // `serve` processes, so an attached client can name the one it is viewing
     let servers: Vec<(u32, u16)> = procs
@@ -233,27 +292,48 @@ pub fn collect(sys: &System, cwds: &mut CwdCache, children: &HashMap<u32, Vec<u3
         .map(|(pid, cmd)| (pid, serve_port(&cmd)))
         .collect();
 
+    // A session a client names explicitly belongs to that client, so reserve it
+    // before anything else can claim it by working directory.
+    let named: Vec<(u32, String)> = procs
+        .iter()
+        .map(|(pid, p)| (*pid, cmdline(p)))
+        .filter(|(_, cmd)| mode_of(cmd) == "attach")
+        .filter_map(|(pid, cmd)| attach_session_id(&cmd).map(|id| (pid, id)))
+        .collect();
+    for (_, id) in &named {
+        used.insert(id.clone());
+    }
+
     for (pid, p) in procs {
         let cwd = cwds.get(p);
         let cmd = cmdline(p);
         let mode = mode_of(&cmd).to_string();
-        // An attach client is a terminal view: the session lives in the serve
-        // process, so it has no context, no idle time and no title of its own.
-        // Matching it against the cwd would invent all three.
-        let attach_to = (mode == "attach").then(|| attach_target(&cmd)).flatten();
         let is_attach = mode == "attach";
-        let matched = sessions
-            .iter()
-            .filter(|_| !is_attach)
-            .filter(|s| !used.contains(&s.id))
-            .find(|s| !cwd.is_empty() && (s.directory == cwd || Path::new(&s.directory).starts_with(&cwd)));
+        // An attach client is a terminal view: its session lives in the serve
+        // process. Matching it against the cwd would invent a title, a context
+        // size and an idle time it does not own — but `--session <id>` states
+        // which session it is showing, and that we can look up for real.
+        let attach_to = is_attach.then(|| attach_target(&cmd)).flatten();
+        let named_session: Option<DbSession> = named.iter().find(|(np, _)| *np == pid).and_then(|(_, id)| {
+            // a named session can be older than the window recent_sessions reads
+            sessions.iter().find(|s| &s.id == id).cloned().or_else(|| session_by_id(&db, id))
+        });
+        let matched = named_session.as_ref().or_else(|| {
+            sessions
+                .iter()
+                .filter(|_| !is_attach)
+                .filter(|s| !used.contains(&s.id))
+                .find(|s| !cwd.is_empty() && (s.directory == cwd || Path::new(&s.directory).starts_with(&cwd)))
+        });
         if let Some(s) = matched {
             used.insert(s.id.clone());
         }
         let idle = matched.map(|s| now_secs.saturating_sub(s.time_updated / 1000));
         let uptime = now_secs.saturating_sub(p.start_time());
-        // session last touched before this process started: it is the previous session in that dir
-        let previous = matched.map(|s| s.time_updated / 1000 + 5 < p.start_time()).unwrap_or(false);
+        // session last touched before this process started: it is the previous
+        // session in that dir. A session named on the command line is not a
+        // guess, so it never carries that caveat.
+        let previous = named_session.is_none() && matched.map(|s| s.time_updated / 1000 + 5 < p.start_time()).unwrap_or(false);
         let project = Path::new(&cwd).file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| cwd.clone());
         let mut info = SessionInfo {
             agent: "opencode",
