@@ -233,15 +233,24 @@ fn draw(f: &mut Frame, app: &mut App) {
     draw_help(f, app, chunks[3]);
 
     if let Some(pid) = app.confirm_kill {
-        let title = app.sessions.iter().find(|s| s.pid == pid).map(|s| s.title.clone()).unwrap_or_default();
-        let text = vec![
+        let target = app.sessions.iter().find(|s| s.pid == pid);
+        let title = target.map(|s| s.title.clone()).unwrap_or_default();
+        let is_view = target.map(|s| s.agent == "opencode" && s.entrypoint == "attach").unwrap_or(false);
+        let mut text = vec![
             Line::from(format!("Send SIGTERM to PID {pid}?")),
             Line::from(Span::styled(truncate(&title, 50), Style::default().fg(Color::Yellow))),
             Line::from(""),
-            Line::from(vec![Span::styled("y", Style::default().bold()), Span::raw(" = yes   any other key = cancel")]),
         ];
+        if is_view {
+            text.push(Line::from(Span::styled(
+                "This closes the view only — the session keeps running",
+                Style::default().fg(Color::Cyan),
+            )));
+            text.push(Line::from(""));
+        }
+        text.push(Line::from(vec![Span::styled("y", Style::default().bold()), Span::raw(" = yes   any other key = cancel")]));
         let w = 60.min(area.width.saturating_sub(2));
-        let h = 6;
+        let h = if is_view { 8 } else { 6 };
         let popup = Rect::new(area.x + (area.width - w) / 2, area.y + (area.height.saturating_sub(h)) / 2, w, h);
         f.render_widget(Clear, popup);
         f.render_widget(
@@ -266,7 +275,7 @@ fn draw_header(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(format!("{alive}"), Style::default().bold().fg(Color::Green)),
         Span::raw(" running  "),
         Span::styled(format!("{}", bytes(total)), Style::default().bold().fg(Color::Magenta)),
-        Span::raw(" total RSS (incl. children)  "),
+        Span::raw(format!(" total {} (incl. children)  ", crate::mem::METRIC)),
     ];
     let cc = app.sessions.iter().filter(|s| s.alive && s.agent == "claude").count();
     let oc = app.sessions.iter().filter(|s| s.alive && s.agent == "opencode").count();
@@ -443,6 +452,12 @@ fn draw_detail(f: &mut Frame, app: &App, area: Rect) {
         let shown: Vec<String> = kids.iter().take(6).map(|c| format!("{} {}({})", bytes(c.rss), truncate(&c.name, 40), c.pid)).collect();
         let more = if kids.len() > 6 { format!("  +{} more", kids.len() - 6) } else { String::new() };
         lines.push(kv(&format!("child×{}", kids.len()), format!("{}{}", shown.join("  |  "), more)));
+    }
+    if s.agent == "opencode" && s.entrypoint == "attach" {
+        lines.push(Line::from(Span::styled(
+            "  This is a terminal view, not a session: the session lives in the serve process, so CTX and IDLE belong there and x only closes the view",
+            Style::default().fg(Color::DarkGray),
+        )));
     }
     if s.agent == "copilot" && s.entrypoint == "vscode" {
         lines.push(Line::from(Span::styled(

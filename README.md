@@ -57,8 +57,8 @@ Example `--once` output:
 
 | Column | Meaning |
 |---|---|
-| MEM | RSS of the agent process itself |
-| TREE | Total RSS including child processes (MCP servers, hooks, …) |
+| MEM | Memory held by the agent process itself ([which number this is](#which-memory-number)) |
+| TREE | Same, summed over child processes too (MCP servers, hooks, …) |
 | UP | Time since the process started |
 | IDLE | Time since the session transcript was last written. Marked `!` / yellow once it exceeds `--idle-warn` (default 30 min) |
 | CTX | Input tokens of the last assistant turn (input + cache read + cache creation) |
@@ -78,10 +78,26 @@ Example `--once` output:
 
 ## How it works
 
-1. Agent processes are found in the process table (sysinfo) — RSS / CPU / start time. PID reuse is detected by comparing start times
+1. Agent processes are found in the process table (sysinfo) — memory / CPU / start time. PID reuse is detected by comparing start times
 2. The state files each agent already writes (registries, SQLite databases, lock files, transcripts) are read **read-only** and joined onto the processes to add title, idle time and token counts
 
 The data source differs per agent — see the sections below.
+
+### Which memory number
+
+| Platform | Metric | Why |
+|---|---|---|
+| macOS | **Physical footprint** (`proc_pid_rusage`) | The kernel compresses the pages of a process nobody touches, so an idle session's RSS falls while it still holds the memory. Footprint counts the compressed and swapped pages too — it is what Activity Monitor's "Memory" column shows |
+| Linux | RSS | No memory compressor in the default configuration |
+| Windows | Private working set (via sysinfo) | Already accounts for paged-out private memory |
+
+This matters most for exactly the sessions this tool exists to find. On a machine
+under memory pressure, an OpenCode session idle for seven hours measured **218 MB
+of RSS but 1.4 GB of footprint** — sorting by RSS ranked it below sessions that
+were actively in use.
+
+`--json` keeps the field names `rss_self` and `rss_tree` for compatibility;
+they carry whichever metric the table above selects.
 
 ## Claude Code
 
@@ -98,6 +114,7 @@ Claude Code sessions appear as **AGENT = claude**.
 - Session data is read read-only from `~/.local/share/opencode/opencode.db` (SQLite). Override with `OPENCODE_DB`; `XDG_DATA_HOME` is respected
 - OpenCode has no PID registry, so the **latest session whose directory matches the process cwd** is attached. If that session ended before the process started it is shown with `(last in dir)`
 - IDLE comes from the session's `time_updated`; CTX is input + cache tokens of the last assistant turn
+- `opencode attach <url>` is a terminal **view**, not a session: the session runs in the `serve` process it points at. Such rows show `-` for IDLE and CTX, name the server they belong to, and warn that `x` closes only the view
 - `x` in the TUI works on OpenCode processes too
 
 ## GitHub Copilot CLI
