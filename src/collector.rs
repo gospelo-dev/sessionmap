@@ -1,6 +1,6 @@
 //! Collects live Claude Code sessions by joining three sources:
 //!  1. `~/.claude/sessions/<pid>.json`  – registry written by each session
-//!  2. the process table (sysinfo)       – RSS / CPU / uptime, incl. child processes (MCP servers, hooks)
+//!  2. the process table (sysinfo)       – memory / CPU / uptime, incl. child processes (MCP servers, hooks)
 //!  3. `~/.claude/projects/*/<sessionId>.jsonl` – title, last activity, context tokens
 
 use serde::Deserialize;
@@ -54,9 +54,11 @@ pub struct SessionInfo {
     pub entrypoint: String,
     pub status: Option<String>,
     pub version: Option<String>,
-    /// RSS of the claude process itself (bytes)
+    /// Memory held by the agent process itself, in bytes. Physical footprint on
+    /// macOS, RSS elsewhere — see [`crate::mem`]. (Field name kept for `--json`
+    /// compatibility.)
     pub rss_self: u64,
-    /// RSS of the whole process tree (bytes)
+    /// Same metric, summed over the whole process tree (bytes)
     pub rss_tree: u64,
     pub cpu: f32,
     /// seconds since process start
@@ -134,7 +136,7 @@ impl Collector {
             if alive {
                 let p = proc_.unwrap();
                 info.alive = true;
-                info.rss_self = p.memory();
+                info.rss_self = crate::mem::proc_mem(p);
                 info.cpu = p.cpu_usage();
                 info.uptime_secs = now_secs.saturating_sub(p.start_time());
                 info.cmdline = cmdline(p);
@@ -162,7 +164,7 @@ impl Collector {
             let mut info = Self::base_info(&mut self.cache, &reg, now_secs, &jsonl_index);
             info.alive = true;
             info.unregistered = true;
-            info.rss_self = p.memory();
+            info.rss_self = crate::mem::proc_mem(p);
             info.cpu = p.cpu_usage();
             info.uptime_secs = now_secs.saturating_sub(p.start_time());
             info.cmdline = cmd;
@@ -246,10 +248,11 @@ pub fn fill_tree_excluding(sys: &System, info: &mut SessionInfo, children: &Hash
                 continue;
             }
             if let Some(p) = sys.process(Pid::from_u32(c)) {
-                total += p.memory();
+                let mem = crate::mem::proc_mem(p);
+                total += mem;
                 info.children.push(ChildProc {
                     pid: c,
-                    rss: p.memory(),
+                    rss: mem,
                     name: short_cmd(p),
                 });
                 if let Some(cc) = children.get(&c) {

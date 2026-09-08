@@ -4,6 +4,7 @@ mod copilot;
 mod copilot_vscode;
 mod format;
 mod jsonl;
+mod mem;
 mod opencode;
 mod ui;
 
@@ -106,10 +107,11 @@ fn print_table(sessions: &[SessionInfo], idle_warn: u64, color: bool) {
 
     // banner
     let mut banner = format!(
-        "{} {} running  {} total RSS (incl. children)",
+        "{} {} running  {} total {} (incl. children)",
         p.banner(" sessionmap "),
         p.bold(p.green(alive_n.to_string())),
-        p.bold(p.magenta(bytes(total)))
+        p.bold(p.magenta(bytes(total))),
+        crate::mem::METRIC
     );
     if busy_n > 0 { banner.push_str(&format!("  {}", p.green(format!("{busy_n} busy")))); }
     if idle_n > 0 { banner.push_str(&format!("  {}", p.bold(p.yellow(format!("{idle_n} idle >{idle_warn}m"))))); }

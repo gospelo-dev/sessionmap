@@ -302,7 +302,7 @@ pub fn collect(
             entrypoint: "vscode".to_string(),
             status: idle.filter(|i| *i < 15).map(|_| "busy".to_string()),
             version: lock.ide_name.clone(),
-            rss_self: proc_.map(|p| p.memory()).unwrap_or(0),
+            rss_self: proc_.map(crate::mem::proc_mem).unwrap_or(0),
             rss_tree: 0,
             cpu: proc_.map(|p| p.cpu_usage()).unwrap_or(0.0),
             uptime_secs: proc_

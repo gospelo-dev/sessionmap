@@ -173,7 +173,7 @@ pub fn collect(sys: &System, cache: &mut EventsCache, children: &HashMap<u32, Ve
                 entrypoint,
                 status: idle.filter(|i| *i < 15).map(|_| "busy".to_string()),
                 version: None,
-                rss_self: proc_.map(|p| p.memory()).unwrap_or(0),
+                rss_self: proc_.map(crate::mem::proc_mem).unwrap_or(0),
                 rss_tree: 0,
                 cpu: proc_.map(|p| p.cpu_usage()).unwrap_or(0.0),
                 uptime_secs: root.map(|p| now_secs.saturating_sub(p.start_time())).unwrap_or(0),
@@ -190,14 +190,14 @@ pub fn collect(sys: &System, cache: &mut EventsCache, children: &HashMap<u32, Ve
                 // count the wrapper's own memory too when we rooted at it
                 if let (Some(r), Some(p)) = (root, proc_) {
                     if r.pid() != p.pid() {
-                        info.rss_self += r.memory();
+                        info.rss_self += crate::mem::proc_mem(r);
                     }
                 }
                 fill_tree(sys, &mut info, children);
                 // fill_tree adds descendants of root_pid, which include the lock holder itself: avoid double count
                 if let (Some(r), Some(p)) = (root, proc_) {
                     if r.pid() != p.pid() {
-                        info.rss_tree = info.rss_tree.saturating_sub(p.memory());
+                        info.rss_tree = info.rss_tree.saturating_sub(crate::mem::proc_mem(p));
                         info.children.retain(|c| c.pid != p.pid().as_u32());
                     }
                 }

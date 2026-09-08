@@ -43,6 +43,55 @@ pub fn is_opencode(p: &Process) -> bool {
     crate::collector::proc_named(p, "opencode")
 }
 
+/// The subcommand: `serve`, `attach`, or `tui` when it was started bare.
+fn mode_of(cmd: &str) -> &str {
+    cmd.split_whitespace().nth(1).filter(|a| !a.starts_with('-')).unwrap_or("tui")
+}
+
+const DEFAULT_PORT: u16 = 4096;
+
+/// `opencode attach <url>` → the `host:port` it is a view of.
+fn attach_target(cmd: &str) -> Option<String> {
+    let url = cmd.split_whitespace().nth(2)?;
+    let hostport = url.split("//").nth(1).unwrap_or(url).trim_end_matches('/');
+    (!hostport.is_empty()).then(|| hostport.to_string())
+}
+
+fn port_of(hostport: &str) -> Option<u16> {
+    hostport.rsplit(':').next()?.parse().ok()
+}
+
+/// The port an `opencode serve` was told to listen on. `--port 0` means "pick a
+/// free one", which we cannot know from the command line, so it stays 0 and the
+/// single-server fallback below takes over.
+fn serve_port(cmd: &str) -> u16 {
+    let mut it = cmd.split_whitespace();
+    while let Some(a) = it.next() {
+        if a == "--port" {
+            if let Some(v) = it.next() {
+                return v.parse().unwrap_or(DEFAULT_PORT);
+            }
+        } else if let Some(v) = a.strip_prefix("--port=") {
+            return v.parse().unwrap_or(DEFAULT_PORT);
+        }
+    }
+    DEFAULT_PORT
+}
+
+/// Which `serve` process an attached client is looking at: by port when the
+/// server named one, otherwise by elimination when there is only one server.
+fn server_for(servers: &[(u32, u16)], target: Option<&str>) -> Option<u32> {
+    if let Some(port) = target.and_then(port_of) {
+        if let Some((pid, _)) = servers.iter().find(|(_, p)| *p == port) {
+            return Some(*pid);
+        }
+    }
+    match servers {
+        [(pid, _)] => Some(*pid),
+        _ => None,
+    }
+}
+
 /// Recent top-level sessions, newest first. Cheap: indexed query, small limit.
 pub fn recent_sessions(path: &Path, limit: usize) -> Vec<DbSession> {
     let Ok(conn) = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX) else {
@@ -123,6 +172,45 @@ fn first_prompt(conn: &Connection, sid: &str) -> Option<String> {
     None
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_the_subcommand() {
+        assert_eq!(mode_of("opencode"), "tui");
+        assert_eq!(mode_of("opencode --port 4096"), "tui");
+        assert_eq!(mode_of("opencode serve --port 4097"), "serve");
+        assert_eq!(mode_of("opencode attach http://127.0.0.1:4096"), "attach");
+    }
+
+    #[test]
+    fn reads_the_attach_target() {
+        assert_eq!(attach_target("opencode attach http://127.0.0.1:4096").as_deref(), Some("127.0.0.1:4096"));
+        assert_eq!(attach_target("opencode attach 127.0.0.1:4096/").as_deref(), Some("127.0.0.1:4096"));
+        assert_eq!(attach_target("opencode attach"), None);
+    }
+
+    #[test]
+    fn reads_the_serve_port() {
+        assert_eq!(serve_port("opencode serve"), DEFAULT_PORT);
+        assert_eq!(serve_port("opencode serve --port 4097"), 4097);
+        assert_eq!(serve_port("opencode serve --port=4097"), 4097);
+        assert_eq!(serve_port("opencode serve --port 0"), 0);
+    }
+
+    #[test]
+    fn links_a_client_to_its_server() {
+        let servers = vec![(10u32, 4096u16), (11, 4097)];
+        assert_eq!(server_for(&servers, Some("127.0.0.1:4097")), Some(11));
+        // no port match and several servers: claim nothing rather than guess
+        assert_eq!(server_for(&servers, Some("127.0.0.1:9999")), None);
+        // a single server needs no port match (covers `serve --port 0`)
+        assert_eq!(server_for(&[(12, 0)], Some("127.0.0.1:5000")), Some(12));
+        assert_eq!(server_for(&[], Some("127.0.0.1:4096")), None);
+    }
+}
+
 pub fn collect(sys: &System, cwds: &mut CwdCache, children: &HashMap<u32, Vec<u32>>, now_secs: u64) -> Vec<SessionInfo> {
     let mut out = Vec::new();
     let procs: Vec<(u32, &Process)> = sys
@@ -137,13 +225,26 @@ pub fn collect(sys: &System, cwds: &mut CwdCache, children: &HashMap<u32, Vec<u3
     }
     let sessions = recent_sessions(&db_path(), 200);
     let mut used: std::collections::HashSet<String> = Default::default();
+    // `serve` processes, so an attached client can name the one it is viewing
+    let servers: Vec<(u32, u16)> = procs
+        .iter()
+        .map(|(pid, p)| (*pid, cmdline(p)))
+        .filter(|(_, cmd)| mode_of(cmd) == "serve")
+        .map(|(pid, cmd)| (pid, serve_port(&cmd)))
+        .collect();
 
     for (pid, p) in procs {
         let cwd = cwds.get(p);
         let cmd = cmdline(p);
-        let mode = cmd.split_whitespace().nth(1).filter(|a| !a.starts_with('-')).unwrap_or("tui").to_string();
+        let mode = mode_of(&cmd).to_string();
+        // An attach client is a terminal view: the session lives in the serve
+        // process, so it has no context, no idle time and no title of its own.
+        // Matching it against the cwd would invent all three.
+        let attach_to = (mode == "attach").then(|| attach_target(&cmd)).flatten();
+        let is_attach = mode == "attach";
         let matched = sessions
             .iter()
+            .filter(|_| !is_attach)
             .filter(|s| !used.contains(&s.id))
             .find(|s| !cwd.is_empty() && (s.directory == cwd || Path::new(&s.directory).starts_with(&cwd)));
         if let Some(s) = matched {
@@ -162,6 +263,11 @@ pub fn collect(sys: &System, cwds: &mut CwdCache, children: &HashMap<u32, Vec<u3
             title: match matched {
                 Some(s) if previous => format!("(last in dir) {}", s.title),
                 Some(s) => s.title.clone(),
+                None if is_attach => match (&attach_to, server_for(&servers, attach_to.as_deref())) {
+                    (Some(t), Some(sp)) => format!("(view of {t} — session runs in pid {sp})"),
+                    (Some(t), None) => format!("(view of {t})"),
+                    (None, _) => "(attach client)".to_string(),
+                },
                 None => format!("(opencode {mode}, no session in cwd)"),
             },
             title_source: if previous { "db:previous" } else if matched.is_some() { "db" } else { "none" },
@@ -170,7 +276,7 @@ pub fn collect(sys: &System, cwds: &mut CwdCache, children: &HashMap<u32, Vec<u3
             entrypoint: mode,
             status: idle.filter(|i| *i < 15).map(|_| "busy".to_string()),
             version: None,
-            rss_self: p.memory(),
+            rss_self: crate::mem::proc_mem(p),
             rss_tree: 0,
             cpu: p.cpu_usage(),
             uptime_secs: uptime,
@@ -181,7 +287,8 @@ pub fn collect(sys: &System, cwds: &mut CwdCache, children: &HashMap<u32, Vec<u3
             git_branch: None,
             cmdline: cmd,
             children: Vec::<ChildProc>::new(),
-            unregistered: matched.is_none(),
+            // an attach client legitimately has no session, so keep VIA = "attach"
+            unregistered: matched.is_none() && !is_attach,
         };
             fill_tree(sys, &mut info, children);
         out.push(info);

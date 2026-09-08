@@ -160,7 +160,7 @@ pub fn collect(
             entrypoint: mode.to_string(),
             status: idle.filter(|i| *i < 15).map(|_| "busy".to_string()),
             version: None,
-            rss_self: p.memory(),
+            rss_self: crate::mem::proc_mem(p),
             rss_tree: 0,
             cpu: p.cpu_usage(),
             uptime_secs: now_secs.saturating_sub(p.start_time()),
